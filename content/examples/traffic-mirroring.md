@@ -1,7 +1,7 @@
 +++
 title = "Traffic Mirroring"
 weight = 80
-updated = 2026-02-19
+updated = 2026-10-18
 +++
 
 This guide demonstrates how to use Zentinel's traffic mirroring (shadow traffic) feature for safe canary deployments and testing.
@@ -80,7 +80,7 @@ upstreams {
     upstream "production" {
         target "127.0.0.1:9001" weight=100
         health-check {
-            path "/health"
+            type "http" { path "/health" }
             interval-secs 10
         }
     }
@@ -88,7 +88,7 @@ upstreams {
     upstream "canary" {
         target "127.0.0.1:9002" weight=100
         health-check {
-            path "/health"
+            type "http" { path "/health" }
             interval-secs 10
         }
     }
@@ -356,7 +356,7 @@ Mirror requests with body inspection:
 route "api-with-body" {
     matches {
         path "/api/users"
-        method "POST" "PUT"
+        method "POST"  // one method: the parser reads only the first argument (26.10_3)
     }
     upstream "production"
 
@@ -452,6 +452,7 @@ groups:
 **Setup:**
 ```kdl
 route "api" {
+    matches { path-prefix "/api/" }
     upstream "production"  // v1.0
 
     shadow {
@@ -476,6 +477,7 @@ route "api" {
 **Setup:**
 ```kdl
 route "api" {
+    matches { path-prefix "/api/" }
     upstream "current-infra"
 
     shadow {
@@ -498,6 +500,7 @@ route "api" {
 **Setup:**
 ```kdl
 route "api-v1" {
+    matches { path-prefix "/api/" }
     upstream "legacy-api"
 
     shadow {
@@ -542,6 +545,7 @@ Shadow timeouts should be **shorter** than primary timeouts:
 
 ```kdl
 route "api" {
+    matches { path-prefix "/api/" }
     policies {
         timeout-secs 30  // Primary timeout
     }
@@ -680,9 +684,9 @@ upstreams {
     upstream "production" {
         target "prod-api-1.internal:8000" weight=100
         target "prod-api-2.internal:8000" weight=100
-        load-balancing "round-robin"
+        load-balancing "round_robin"
         health-check {
-            path "/health"
+            type "http" { path "/health" }
             interval-secs 10
             timeout-secs 2
             healthy-threshold 2
@@ -693,7 +697,7 @@ upstreams {
     upstream "canary" {
         target "canary-api-1.internal:8000" weight=100
         health-check {
-            path "/health"
+            type "http" { path "/health" }
             interval-secs 10
             timeout-secs 2
         }
@@ -716,7 +720,6 @@ routes {
         priority 200
         matches {
             path-prefix "/api/v2/"
-            method "GET" "POST" "PUT" "DELETE"
         }
         upstream "production"
 
@@ -761,7 +764,7 @@ routes {
 observability {
     metrics {
         enabled #true
-        port 9090
+        address "0.0.0.0:9090"
     }
 
     logging {
