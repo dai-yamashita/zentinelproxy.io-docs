@@ -1,7 +1,7 @@
 +++
 title = "API Schema Validation"
 weight = 3
-updated = 2026-10-18
+updated = 2026-10-19
 +++
 
 Validate API requests and responses against JSON schemas or OpenAPI specifications at the proxy layer. This example demonstrates contract validation, ensuring all API traffic conforms to your API specifications.
@@ -200,7 +200,7 @@ routes {
         priority 100
         matches {
             path-prefix "/api/profile"
-            method "GET"  // one method: the parser reads only the first argument (26.10_3)
+            method "GET"
         }
         upstream "api-backend"
         service-type "api"

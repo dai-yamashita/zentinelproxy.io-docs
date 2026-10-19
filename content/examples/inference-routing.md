@@ -1,7 +1,7 @@
 +++
 title = "Inference Routing"
 weight = 18
-updated = 2026-10-18
+updated = 2026-10-19
 +++
 
 Configure Zentinel for LLM/AI inference endpoints with token-based rate limiting, model routing, cost tracking, and intelligent load balancing. This example demonstrates how to build a production-ready AI gateway.
@@ -50,7 +50,6 @@ Create `zentinel.kdl`:
 
 system {
     worker-threads 4
-    max-connections 5000
     graceful-shutdown-timeout-secs 30
 }
 
@@ -358,9 +357,9 @@ observability {
 }
 
 limits {
-    max-header-size-bytes 8192
+    max-header-size 8192
     max-header-count 100
-    max-body-size-bytes 10485760  // 10MB for large prompts
+    max-body-size 10485760  // 10MB for large prompts
 }
 ```
 

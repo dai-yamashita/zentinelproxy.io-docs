@@ -37,9 +37,9 @@ zentinel lint --config zentinel.kdl
 zentinel --test --verbose --config zentinel.kdl
 ```
 
-If a setting seems to have no effect, run `lint` first. KDL accepts any name, so a typo in an optional setting is not an error: the proxy runs on the default, `--test` passes, and only `lint` says "is being ignored".
+If a setting seems to have no effect, run `zentinel test` or `lint` first. KDL accepts any name, so a typo in an optional setting is not an error: the proxy runs on the default and the check passes, but from 26.10_5 both `zentinel test` and `lint` print "is being ignored" for it (`zentinel test --strict` fails). Before 26.10_5 only `lint` reported it. `-t` / `--test` prints the warnings too but has no `--strict`.
 
-If `lint` is silent and the setting still does nothing, check [Known Limitations](/reference/known-limitations/). It lists settings the current release accepts but does not apply, and behaviour that differs from what the configuration suggests, with workarounds.
+If neither reports anything and the setting still does nothing, check [Known Limitations](/reference/known-limitations/). It lists settings the current release accepts but does not apply, and behaviour that differs from what the configuration suggests, with workarounds.
 
 ### Check Connectivity
 
@@ -152,34 +152,35 @@ dig upstream.internal
 
 **Diagnosis:**
 ```bash
-# Check circuit breaker status
+# Check circuit breaker and target health
 curl http://localhost:9090/admin/upstreams
 
-# Check connection limits
-curl http://localhost:9090/metrics | grep connections
+# Look for health-check failures in the log
+journalctl -u zentinel | grep -i health
 ```
 
 **Common causes:**
 1. Circuit breaker open
-2. All upstreams unhealthy
-3. Connection limit reached
-4. Rate limit exceeded
+2. Every target of the upstream is failing its health check. From 26.10_5, failing targets are taken out of rotation, and when none is left Zentinel answers 503 instead of trying them. Check the health-check `path`, `expected-status` and `host` against what the backend returns.
+
+Rate limits answer with their `status-code` (default `429`). Zentinel does not limit client connections, so a connection limit is not a cause.
 
 **Solutions:**
 ```kdl
-// Increase connection limits
-limits {
-    max-total-connections 20000
-    max-connections-per-client 200
-}
-
-// Adjust the upstream circuit breaker
+// Adjust the upstream circuit breaker and health check
 upstreams {
     upstream "backend" {
         target "10.0.1.10:8080"
         circuit-breaker {
             failure-threshold 10    // More tolerant
             timeout-seconds 60      // Longer recovery
+        }
+        health-check {
+            type "http" {
+                path "/health"
+                expected-status 200
+            }
+            unhealthy-threshold 5   // More tolerant
         }
     }
 }
@@ -232,7 +233,7 @@ upstreams {
 
 2. **Host header mismatch** - Your backend checks the `Host` header and redirects to a canonical domain (e.g., `www.example.com`), but Zentinel forwards a different `Host` value.
 
-3. **`X-Forwarded-Proto` not set** - The backend checks the protocol and issues an HTTPS redirect because it doesn't know the client already connected over HTTPS.
+3. **`X-Forwarded-Proto` says `http`** - The backend checks the protocol and issues an HTTPS redirect because it doesn't know the client already connected over HTTPS. This happens when TLS ends at a load balancer in front of Zentinel, or on releases before 26.10_5.
 
 **Solution for cause 1 (most common):**
 
@@ -274,7 +275,17 @@ routes {
 
 **Solution for cause 3:**
 
-Zentinel does not send `X-Forwarded-Proto` on its own as of 26.10_3 ([#515](https://github.com/zentinelproxy/zentinel/issues/515)). Set it on routes served by an HTTPS listener:
+From 26.10_5, Zentinel sets `X-Forwarded-Proto` to `https` for requests that arrived on a TLS listener and to `http` otherwise. If TLS ends at a load balancer that forwards plain HTTP to Zentinel, list the load balancer in the listener's [`trusted-proxies`](/configuration/listeners/#trusted-proxies) so its `X-Forwarded-Proto: https` is kept instead of replaced:
+
+```fragment,kdl
+listener "public" {
+    address "0.0.0.0:8080"
+    protocol "http"
+    trusted-proxies "10.0.0.0/8"
+}
+```
+
+Before 26.10_5, Zentinel did not send `X-Forwarded-Proto` at all. On those releases, or to force a value, set it on the route:
 
 ```kdl
 routes {

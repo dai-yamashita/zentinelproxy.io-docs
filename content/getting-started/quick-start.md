@@ -104,7 +104,7 @@ zentinel lint -c zentinel.kdl
 
 `test` loads the configuration exactly as the proxy would and fails on anything that stops it starting: syntax errors, a missing required setting, a route pointing at an upstream that doesn't exist.
 
-`lint` also reports **settings that are being ignored**. KDL accepts any name, so a misspelled optional setting is not an error: the proxy runs on the default and `test` says the file is fine. Only `lint` tells you. For example, `interval-sec 5` where `interval-secs` was meant:
+Both also report **settings that are being ignored**. KDL accepts any name, so a misspelled optional setting is not an error: the proxy runs on the default. For example, `interval-sec 5` where `interval-secs` was meant:
 
 ```fragment,kdl
 health-check {
@@ -114,12 +114,13 @@ health-check {
 
 ```
 $ zentinel test -c zentinel.kdl
-zentinel: configuration file zentinel.kdl test is successful
-$ zentinel lint -c zentinel.kdl
   ⚠  'interval-sec' is not a setting in the 'health-check' block and is being ignored. Did you mean 'interval-secs'?
+zentinel: configuration file zentinel.kdl test is successful
 ```
 
-For the configuration above, `lint` prints only best-practice advice: no timeouts or retry policy on the routes, no health checks. That's expected for a first config, and the next steps fix some of it. Run `lint` whenever you change the file.
+`test` still exits `0` here, because the file loads. `zentinel test --strict -c zentinel.kdl` exits `1` when any setting is being ignored; use it in CI and before a reload. Before 26.10_5, `test` did not print these warnings and only `lint` reported ignored settings.
+
+`lint` reports the same ignored settings and adds best-practice advice. For the configuration above it prints only advice: no timeouts or retry policy on the routes, no health checks. That's expected for a first config, and the next steps fix some of it. Run `lint` whenever you change the file.
 
 ## 5. Run Zentinel
 
@@ -181,9 +182,15 @@ upstreams {
 }
 ```
 
-Every 5 seconds Zentinel requests `/api/` from the backend, and after 3 failures in a row it stops sending traffic there. Run `zentinel lint -c zentinel.kdl` again, then **restart** Zentinel (Ctrl-C, then `zentinel -c zentinel.kdl`). The log shows `Started active health checking`.
+Every 5 seconds Zentinel requests `/api/` from the backend, and after 3 failures in a row it stops sending traffic there. If every target of an upstream is failing, requests to it get `503 Service Unavailable`. Run `zentinel lint -c zentinel.kdl` again, then reload the configuration without stopping the proxy:
 
-> Zentinel reloads its configuration on `SIGHUP`, but a reload does not yet start health checks for upstreams it changed ([#516](https://github.com/zentinelproxy/zentinel/issues/516)), so restart after adding or changing one.
+```bash
+kill -HUP $(pgrep -x zentinel)
+```
+
+The backend's log shows a `GET /api/` from Zentinel every 5 seconds. (`pgrep -x` matches only the proxy process, not agent processes such as `zentinel-echo-agent`.)
+
+> Before 26.10_5, a reload did not start health checks for upstreams it added or changed, and probe results did not take targets out of rotation. On those releases, **restart** Zentinel after adding or changing a health check (Ctrl-C, then `zentinel -c zentinel.kdl`).
 
 ## 8. Serve HTTPS
 
@@ -281,7 +288,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 ### A setting seems to have no effect
 
-Run `zentinel lint -c zentinel.kdl` and look for "is being ignored". A misspelled or misplaced setting is dropped without an error, and only `lint` reports it.
+Run `zentinel test -c zentinel.kdl` (or `lint`) and look for "is being ignored". A misspelled or misplaced setting is dropped without an error; from 26.10_5 both commands report it, and `test --strict` fails on it. Before 26.10_5 only `lint` reported it.
 
 ### "Address already in use" when starting
 

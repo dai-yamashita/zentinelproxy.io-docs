@@ -1,7 +1,7 @@
 +++
 title = "File Format"
 weight = 1
-updated = 2026-10-18
+updated = 2026-10-19
 +++
 
 Zentinel uses [KDL](https://kdl.dev/) as its primary configuration format. KDL is a human-friendly document language that's easy to read, write, and diff.
@@ -61,7 +61,6 @@ agent "waf" type="waf" { /* ... */ }
 system {
     // Numbers (integer)
     worker-threads 4
-    max-connections 1000
     graceful-shutdown-timeout-secs 30
 }
 
@@ -223,7 +222,6 @@ schema-version "1.0"
 
 system {
     worker-threads 0          // 0 = auto-detect CPU cores
-    max-connections 10000
     graceful-shutdown-timeout-secs 30
 }
 
@@ -284,10 +282,12 @@ filters {
     filter "auth" {
         type "agent"
         agent "auth"
+        failure-mode "closed"
     }
     filter "ratelimit" {
         type "agent"
         agent "ratelimit"
+        failure-mode "open"
     }
 }
 
@@ -308,9 +308,9 @@ agents {
 }
 
 limits {
-    max-header-size-bytes 8192
+    max-header-size 8192
     max-header-count 100
-    max-body-size-bytes 10485760  // 10MB
+    max-body-size 10485760  // 10MB
 }
 ```
 

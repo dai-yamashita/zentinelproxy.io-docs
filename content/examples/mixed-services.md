@@ -1,7 +1,7 @@
 +++
 title = "Microservices"
 weight = 5
-updated = 2026-10-18
+updated = 2026-10-19
 +++
 
 Route traffic to multiple backend services based on path, headers, and other criteria. This example demonstrates a microservices architecture with Zentinel as the API gateway.
@@ -147,7 +147,7 @@ routes {
         priority 250
         matches {
             path-prefix "/api/products/"
-            method "POST"  // one method: the parser reads only the first argument (26.10_3)
+            method "POST"
         }
         upstream "product-service"
         filters "auth" "ratelimit"
@@ -281,10 +281,12 @@ filters {
     filter "auth" {
         type "agent"
         agent "auth"
+        failure-mode "closed"
     }
     filter "ratelimit" {
         type "agent"
         agent "ratelimit"
+        failure-mode "open"
     }
 }
 

@@ -1,7 +1,7 @@
 +++
 title = "First Route"
 weight = 3
-updated = 2026-10-18
+updated = 2026-10-19
 +++
 
 Routes are the core of Zentinel's traffic management. They match incoming requests and direct them to the appropriate backend.
@@ -99,11 +99,13 @@ matches {
 }
 ```
 
-{% callout(type="warning") %}
-As of 26.10_3 the configuration parser keeps only the **first** method of a
-`method` node, so `method "GET" "POST"` matches `GET` only (the router itself
-supports several). Until that is fixed, give each method its own route, or
-leave the condition out.
+To accept several methods, list them on one line: `method "GET" "POST"`
+matches either.
+
+{% callout(type="note") %}
+Before 26.10_5 the configuration parser kept only the **first** method, so
+`method "GET" "POST"` matched `GET` only. On those releases, give each method
+its own route, or leave the condition out.
 {% end %}
 
 ### Header Matching

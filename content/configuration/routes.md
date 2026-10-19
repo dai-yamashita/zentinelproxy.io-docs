@@ -97,10 +97,12 @@ matches {
 }
 ```
 
-Match a specific HTTP method. `method` takes **one** value: as of 26.10_3 the
-parser reads only the first argument, so `method "GET" "POST"` matches `GET`
-only, and two `method` lines are AND'ed (nothing matches both). To accept
-several methods, use one route per method or leave the method condition out.
+Match an HTTP method. From 26.10_5 `method` takes one or more values and
+matches any of them: `method "GET" "POST"` matches `GET` and `POST`. Write them
+on one line; two `method` lines are two conditions that must both match, so
+nothing matches them. Before 26.10_5 only the first value was read
+(`method "GET" "POST"` matched `GET` only); on those releases use one route per
+method.
 
 #### Header Matching
 
@@ -553,6 +555,11 @@ The schema file is monitored for changes and automatically reloaded (if hot-relo
 
 - Schemas are compiled once at startup for maximum performance
 - Request validation adds minimal latency (typically <1ms)
+- Request validation reads the whole request body before forwarding it; bodies
+  up to the route's effective `max-body-size` are validated and then forwarded,
+  and larger ones get `413`. Before 26.10_5 a body over 64 KiB could not be
+  forwarded after validation: 26.10_4 answered `413`, earlier releases let the
+  upstream time out
 - Response validation requires buffering the full response body
 - Use `validate-responses` only in development/testing environments
 - For high-throughput APIs, consider validating only critical endpoints
@@ -1059,35 +1066,42 @@ For a complete traffic mirroring example with Docker Compose and test scripts, s
 
 ## Error Pages
 
-> **Not configurable from KDL as of 26.10_3.** The configuration schema has an
-> `error-pages` field, but neither KDL parser reads it (both set it to nothing),
-> and `zentinel lint` reports an `error-pages` block in a route as an ignored
-> key. There are no error templates.
+> **Not configurable from KDL.** The configuration schema has an `error-pages`
+> field, but neither KDL parser reads it, and `zentinel lint` reports an
+> `error-pages` block in a route as an ignored key. There are no error
+> templates ([#542](https://github.com/zentinelproxy/zentinel/issues/542)).
 
-What a client receives on an error depends on where the error came from. Observed
-on 26.10_3:
+What a client receives on an error depends on where the error came from. From
+26.10_5:
 
 | Situation | Status | Body | `Content-Type` |
 |-----------|--------|------|----------------|
-| Upstream unreachable, timed out, no healthy target | `502`/`503`/`504` | `{"error":"503 Service Unavailable","trace_id":"V9ZSZT2h6Ug"}` | `application/json` |
-| Request body over `limits { max-body-size }` | `500` | `{"error":"500 Internal Server Error","trace_id":"..."}` | `application/json` |
-| No route matches | `404` | `{"error":"404 Internal Server Error","trace_id":""}` | `application/json` |
-| Upstream answers with `4xx`/`5xx` | upstream's | the upstream's body, unchanged | replaced, see below |
+| Upstream unreachable (`503` for a refused connection) or timed out (`504`) | `502`/`503`/`504` | `{"error":"502 Bad Gateway","trace_id":"V9ZSZT2h6Ug"}` | `application/json` |
+| Request over a header limit | `500` | `{"error":"500 Internal Server Error","trace_id":"..."}` | `application/json` |
+| Every target failing its health check | `503` | `{"error":"503 Service Unavailable","trace_id":"..."}` | `application/json` |
+| Request body over the effective `max-body-size` | `413` | `{"error":"413 Payload Too Large","trace_id":"..."}` | `application/json` |
+| No route matches | `404` | `{"error":"404 Not Found","trace_id":"..."}` | `application/json` |
+| Upstream answers with `4xx`/`5xx` | upstream's | upstream's, unchanged | upstream's, unchanged |
 | Static file not found | `404` | `404 Not Found` | `text/plain` |
 | Rate-limit filter | `429` | `Rate limit exceeded` | `text/plain; charset=utf-8` |
 | Request schema validation | `400` | see [Validation Error Responses](#validation-error-responses) | `application/json; charset=utf-8` |
 
 Errors the proxy generates itself have the same JSON shape on every route type:
-`error` (status code and reason) and `trace_id`, which is also sent as the
-`X-Correlation-Id` response header. There is no `status` or `request_id` field.
+`error` (status code and the status's standard reason phrase) and `trace_id`,
+which is also sent as the `X-Correlation-Id` response header. There is no
+`status` or `request_id` field.
 
-When the **upstream** returns `4xx`/`5xx`, its body is passed through, but the
-proxy replaces `Content-Type` with its own: `text/html; charset=utf-8` on `web`
-and `static` routes, `application/json; charset=utf-8` on `api`, `builtin` and
-`inference` routes. It also adds `x-request-id`. A JSON error from a backend
-behind a `web` route therefore reaches the client labelled `text/html`
-([#522](https://github.com/zentinelproxy/zentinel/issues/522)). Clients that
-parse error bodies should not rely on `Content-Type` until that is fixed.
+When the **upstream** returns `4xx`/`5xx`, the response is passed through as
+the upstream sent it: status, headers (including `Content-Type`) and body.
+
+**Before 26.10_5:** an upstream error kept its body but had `Content-Type`
+replaced (`text/html; charset=utf-8` on `web` and `static` routes,
+`application/json` on `api`, `builtin` and `inference` routes); proxy errors
+other than 400, 500, 502, 503 and 504 were labelled "Internal Server Error"
+(for example `"404 Internal Server Error"`); the no-route 404 had an empty
+`trace_id` and `X-Correlation-Id`; a body over the global limit got `500`; and
+failing health checks did not take targets out of rotation, so requests still
+went to them.
 
 ## Complete Examples
 

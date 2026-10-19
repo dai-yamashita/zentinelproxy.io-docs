@@ -1,7 +1,7 @@
 +++
 title = "Caching"
 weight = 7
-updated = 2026-10-18
+updated = 2026-10-19
 +++
 
 Zentinel provides HTTP response caching to reduce upstream load and improve response times. Caching is configured at two levels: global storage settings and per-route caching policies.
@@ -548,7 +548,7 @@ routes {
     route "api-mutations" {
         matches {
             path-prefix "/api/v1/"
-            method "POST"  // one method: the parser reads only the first argument (26.10_3)
+            method "POST"
         }
         upstream "api-backend"
         // No cache block = caching disabled

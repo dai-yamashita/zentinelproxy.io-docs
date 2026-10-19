@@ -34,7 +34,7 @@ Zentinel understands different service types and optimizes behavior accordingly:
 ### Error Handling
 - Errors the proxy generates (unreachable upstream, timeouts, no route) are JSON with a trace ID, also sent as `X-Correlation-Id`
 - Retries and circuit breakers for failing upstreams
-- Error pages are not configurable as of 26.10_3; see [Error Pages](@/configuration/routes.md#error-pages) for exactly what clients receive
+- Error pages are not configurable; see [Error Pages](@/configuration/routes.md#error-pages) for exactly what clients receive
 
 ### Observability
 - Access, error and audit logs
@@ -53,7 +53,7 @@ Zentinel understands different service types and optimizes behavior accordingly:
 - Human-friendly KDL configuration format
 - Hot reload without downtime
 - Validation on startup (`zentinel test`), plus `zentinel lint` for settings that are being ignored
-- No environment variable substitution: `${VAR}` in the file is taken literally ([#520](https://github.com/zentinelproxy/zentinel/issues/520))
+- No environment variable substitution: `${VAR}` in the file is taken literally; render the file with a tool such as `envsubst` first
 
 ## Why Zentinel?
 

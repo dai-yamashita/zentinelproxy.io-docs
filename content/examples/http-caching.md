@@ -1,7 +1,7 @@
 +++
 title = "HTTP Caching"
 weight = 16
-updated = 2026-10-18
+updated = 2026-10-19
 +++
 
 Configure HTTP response caching with different storage backends and per-route cache policies. This example demonstrates memory caching, stale-while-revalidate, and cache control handling.
@@ -49,7 +49,6 @@ Create `zentinel.kdl`:
 
 system {
     worker-threads 4
-    max-connections 10000
 }
 
 listeners {
@@ -275,7 +274,7 @@ routes {
 
         matches {
             path-prefix "/api"
-            method "POST"  // one method: the parser reads only the first argument (26.10_3)
+            method "POST"
         }
 
         upstream "api-backend"
@@ -292,7 +291,7 @@ routes {
 
         matches {
             path-prefix "/_cache/purge"
-            method "POST"  // one method: the parser reads only the first argument (26.10_3)
+            method "POST"
         }
 
         builtin-handler "cache-purge"
@@ -353,9 +352,9 @@ observability {
 }
 
 limits {
-    max-header-size-bytes 8192
+    max-header-size 8192
     max-header-count 100
-    max-body-size-bytes 10485760
+    max-body-size 10485760
 }
 ```
 

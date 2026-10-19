@@ -1,7 +1,7 @@
 +++
 title = "Configuration Schema"
 weight = 5
-updated = 2026-10-18
+updated = 2026-10-19
 +++
 
 Quick reference for all Zentinel configuration options.
@@ -37,7 +37,6 @@ listeners {
 
 system {
     worker-threads 0                      // 0 = auto (CPU cores)
-    max-connections 10000
     graceful-shutdown-timeout-secs 30
     trace-id-format "tinyflake"           // or "uuid"
     auto-reload #false
@@ -67,11 +66,11 @@ upstreams {
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `worker-threads` | int | `0` | Worker threads (0=auto) |
-| `max-connections` | int | `10000` | Maximum connections |
+| `max-connections` | int | `10000` | Not applied; reported by `test` and `lint` from 26.10_5 |
 | `graceful-shutdown-timeout-secs` | int | `30` | Shutdown timeout |
 | `trace-id-format` | string | `tinyflake` | Trace ID format |
 | `auto-reload` | bool | `false` | Watch config for changes |
-| `daemon` | bool | `false` | Run as daemon |
+| `daemon` | bool | `false` | Run as daemon (read from the file from 26.10_5) |
 | `pid-file` | path | - | PID file path |
 | `user` | string | - | Drop privileges to user |
 | `group` | string | - | Drop privileges to group |
@@ -211,7 +210,7 @@ routes {
             path-prefix "/api/"
             path-regex "^/user/[0-9]+$"
             host "api.example.com"
-            method "GET"                   // one method per node
+            method "GET" "HEAD"            // any of these (26.10_5+; first only before)
             header "X-Key" "value"         // name, optional value
             query-param "format" "json"    // name, optional value
         }
@@ -367,54 +366,19 @@ routes {
 
 ## Limits Block
 
-As of 26.10_3 these names are read only by the multi-file (directory) loader.
-A single-file configuration is parsed by `parse_limits_config`
-(`crates/config/src/kdl/mod.rs`), which reads just `max-header-size`,
-`max-header-count`, `max-body-size`, `max-connections-per-client`,
-`max-total-connections` and `max-in-flight-requests`; the other keys below are
-ignored there. See [Directive Index — Limits](../directives/#limits-directives).
+A configuration file's `limits` block reads these six keys. Other keys, including
+the `-bytes` spellings, are ignored, and from 26.10_5 `zentinel test` and
+`zentinel lint` report them. See [Limits](/configuration/limits/) and the
+[Directive Index](../directives/#limits-directives).
 
 ```kdl
 limits {
-    // Headers
-    max-header-size-bytes 8192
+    max-header-size 8192              // bytes, all request headers
     max-header-count 100
-    max-header-name-bytes 256
-    max-header-value-bytes 4096
-
-    // Body
-    max-body-size-bytes 10485760
-    max-body-buffer-bytes 1048576
-    max-body-inspection-bytes 1048576
-
-    // Decompression
-    max-decompression-ratio 100.0
-    max-decompressed-size-bytes 104857600
-
-    // Connections
-    max-connections-per-client 100
-    max-connections-per-route 1000
-    max-total-connections 10000
-    max-idle-connections-per-upstream 100
-
-    // Requests
-    max-in-flight-requests 10000
-    max-in-flight-requests-per-worker 1000
-    max-queued-requests 1000
-
-    // Agents
-    max-agent-queue-depth 100
-    max-agent-body-bytes 1048576
-    max-agent-response-bytes 10240
-
-    // Rate limits
-    max-requests-per-second-global 10000
-    max-requests-per-second-per-client 100
-    max-requests-per-second-per-route 1000
-
-    // Memory
-    max-memory-bytes 2147483648
-    // max-memory-percent is not read by any parser
+    max-body-size 10485760            // bytes; routes can lower it
+    max-connections-per-client 100    // not applied (#542)
+    max-total-connections 10000       // not applied (#542)
+    max-in-flight-requests 10000      // not applied (#542)
 }
 ```
 
@@ -446,7 +410,6 @@ agents {
 ```kdl
 system {
     worker-threads 0
-    max-connections 10000
 }
 
 listeners {
@@ -477,7 +440,6 @@ upstreams {
 ```kdl
 system {
     worker-threads 0
-    max-connections 50000
     graceful-shutdown-timeout-secs 60
     auto-reload #true
     daemon #true

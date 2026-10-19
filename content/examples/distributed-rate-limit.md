@@ -1,7 +1,7 @@
 +++
 title = "Distributed Rate Limiting"
 weight = 15
-updated = 2026-02-19
+updated = 2026-10-19
 +++
 
 Configure distributed rate limiting across multiple Zentinel instances using Redis or Memcached backends. This example shows how to implement consistent rate limiting in multi-instance deployments.
@@ -47,7 +47,6 @@ Create `zentinel.kdl`:
 
 system {
     worker-threads 4
-    max-connections 10000
 }
 
 listeners {
@@ -315,9 +314,9 @@ observability {
 }
 
 limits {
-    max-header-size-bytes 8192
+    max-header-size 8192
     max-header-count 100
-    max-body-size-bytes 10485760
+    max-body-size 10485760
 }
 ```
 

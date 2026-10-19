@@ -1,7 +1,7 @@
 +++
 title = "Upstreams"
 weight = 5
-updated = 2026-10-18
+updated = 2026-10-19
 +++
 
 The `upstreams` block defines backend server pools. Each upstream contains one or more targets with load balancing, health checks, and connection pooling.
@@ -152,7 +152,13 @@ upstream "backend" {
 
 Consistent routing based on client IP. Provides session affinity without cookies.
 
-**Note:** Clients behind shared NAT will route to the same target.
+**Note:** Clients behind shared NAT will route to the same target. Behind a load
+balancer, list it in the listener's
+[`trusted-proxies`](/configuration/listeners/#trusted-proxies) so the hash uses
+the client's address from `X-Forwarded-For` rather than the load balancer's.
+
+Before 26.10_5 no client address reached peer selection: `ip_hash` sent every
+client to the same target, and `consistent_hash` did not hash on the client.
 
 ### Consistent Hash
 
@@ -525,6 +531,12 @@ upstream "backend" {
 | `healthy-threshold` | `2` | Successes to mark healthy |
 | `unhealthy-threshold` | `3` | Failures to mark unhealthy |
 
+The HTTP check sends a `GET` for `path` with a `Host` header (`host`, or `localhost` if unset),
+and counts the target healthy when the status equals `expected-status` and the
+answer arrives within `timeout-secs`. Before 26.10_5 only `200` counted, the
+timeout was a fixed second, and probes for a `path` other than `/` were sent
+without a `Host` header.
+
 ### TCP Health Check
 
 ```kdl
@@ -693,11 +705,36 @@ type "mcp" {
 
 When a target fails health checks:
 
-1. Target marked **unhealthy** after `unhealthy-threshold` failures
-2. Traffic stops routing to unhealthy target
+1. Target marked **unhealthy** after `unhealthy-threshold` consecutive failures
+2. Traffic stops routing to the unhealthy target, under every load-balancing algorithm
 3. Health checks continue at `interval-secs`
-4. Target marked **healthy** after `healthy-threshold` successes
-5. Traffic resumes to recovered target
+4. Target marked **healthy** after `healthy-threshold` consecutive successes
+5. Traffic resumes to the recovered target
+
+If every target of an upstream is unhealthy, requests routed to it get
+**`503 Service Unavailable`**; Zentinel does not fall back to sending traffic
+to failing targets. A successful proxied request does not put a target back
+into rotation while its check is failing.
+
+Each target is probed once per `interval-secs`, and each upstream on its own
+interval. Upstreams that get their targets from [`discovery`](#service-discovery)
+are probed at the discovered addresses.
+
+Health checks follow configuration reloads. On `SIGHUP`, a `health-check`
+added to an upstream starts probing, a changed one restarts with the new
+settings and a clean slate, and a removed one stops and returns every target to
+rotation. Upstreams whose check did not change keep their health state.
+
+Targets given as a host name (`target "backend.internal:80"`) are not
+probed, so they stay in rotation whatever their state
+([#544](https://github.com/zentinelproxy/zentinel/issues/544)). Use IP
+addresses, or `discovery "dns"`, for targets that need checks.
+
+**Before 26.10_5:** probe results were not used for routing (a failing target
+kept its share of traffic, and with all targets failing requests still went to
+them), a reload did not start, change or stop checks, every target was probed
+twice per interval, and discovery-backed upstreams were not probed. Restart
+the proxy after changing a health check on those releases.
 
 ## Connection Pool
 
@@ -1473,7 +1510,7 @@ upstream "backend" {
 
 ### Discovery with Health Checks
 
-Discovery works with health checks. Unhealthy discovered backends are temporarily removed:
+Discovery works with health checks. From 26.10_5, discovered backends are probed and unhealthy ones are taken out of rotation until they pass again (before, discovery-backed upstreams were not probed):
 
 ```kdl
 upstream "api" {

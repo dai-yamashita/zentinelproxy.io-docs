@@ -2,7 +2,7 @@
 title = "Directive Index"
 weight = 1
 description = "Complete reference for all Zentinel configuration directives"
-updated = 2026-10-18
+updated = 2026-10-19
 +++
 
 Complete reference for all Zentinel configuration directives, verified against the source code. Each entry includes syntax, context, default values, and usage examples.
@@ -35,7 +35,6 @@ Top-level block for server-wide configuration including worker threads, connecti
 ```kdl
 system {
     worker-threads 4
-    max-connections 10000
     graceful-shutdown-timeout-secs 30
     auto-reload #true
 }
@@ -164,10 +163,9 @@ Top-level block for global resource limits. Protects against resource exhaustion
 
 ```kdl
 limits {
-    max-body-size 10485760    // bytes; multi-file configs: max-body-size-bytes
-    max-header-size 8192      // bytes; multi-file configs: max-header-size-bytes
+    max-body-size 10485760    // bytes
+    max-header-size 8192      // bytes
     max-header-count 100
-    max-connections-per-client 100
 }
 ```
 
@@ -264,16 +262,10 @@ system {
 
 ### `max-connections`
 
-Maximum number of simultaneous connections server-wide.
+Accepted but **not applied**: Zentinel does not limit client connections. From
+26.10_5, `zentinel test` and `zentinel lint` report it as not applied.
 
 **Context:** `system`
-**Default:** `10000`
-
-```kdl
-system {
-    max-connections 50000
-}
-```
 
 ---
 
@@ -294,7 +286,9 @@ system {
 
 ### `daemon`
 
-When enabled, Zentinel forks to the background after startup.
+When enabled, Zentinel forks to the background after startup, like the
+`-d` / `--daemon` flag. Read from the configuration from 26.10_5; before, only
+the flag worked.
 
 **Context:** `system`
 **Default:** `#false`
@@ -920,8 +914,8 @@ matches {
 }
 ```
 
-As of 26.10_3 the parser reads only the first argument: `method "GET" "POST"`
-matches `GET` only. Use one route per method.
+From 26.10_5, `method "GET" "POST"` matches either method. Before 26.10_5 only
+the first argument was read (`GET` only); use one route per method there.
 
 ---
 
@@ -3214,28 +3208,24 @@ pii-detection {
 <small class="docs-ref">[Limits](/configuration/limits/)</small>
 <small class="source-ref">[`crates/common/src/limits.rs`](https://github.com/zentinelproxy/zentinel/blob/main/crates/common/src/limits.rs)</small>
 
-{% callout(type="warning", title="Two parsers, two sets of keys") %}
-A configuration loaded from a single `.kdl` file (`zentinel -c zentinel.kdl`)
-is parsed by `parse_limits_config` in `crates/config/src/kdl/mod.rs`, which as
-of 26.10_3 reads only **`max-header-size`**, `max-header-count`,
-**`max-body-size`**, `max-connections-per-client`, `max-total-connections` and
-`max-in-flight-requests`. Every other key below — and the `-bytes` spellings
-`max-header-size-bytes` / `max-body-size-bytes` — is read only by the
-multi-file (directory) loader (`crates/config/src/multi_file/parsers.rs`) and is
-ignored in a single-file configuration. `max-memory-percent` is read by
-neither.
-{% end %}
+A configuration file's `limits` block reads exactly the six keys below. The
+`-bytes` spellings (`max-header-size-bytes`, `max-body-size-bytes`) and the
+other keys earlier versions of this index listed (`max-connections-per-route`,
+`max-queued-requests`, `max-requests-per-second-*`, `max-memory-bytes`, ...)
+belong to the directory-configuration loader, which the `zentinel` command
+cannot load ([#541](https://github.com/zentinelproxy/zentinel/issues/541)).
+From 26.10_5, `zentinel test` and `zentinel lint` report them as ignored.
 
-### `max-header-size-bytes`
+### `max-header-size`
 
-Maximum size per header.
+Maximum total size of the request headers (names and values), in bytes. `1048576` or more disables the check.
 
 **Context:** `limits`
 **Default:** `8192`
 
 ```kdl
 limits {
-    max-header-size-bytes 16384
+    max-header-size 16384
 }
 ```
 
@@ -3243,7 +3233,7 @@ limits {
 
 ### `max-header-count`
 
-Maximum number of headers.
+Maximum number of request headers. `1048576` or more disables the check.
 
 **Context:** `limits`
 **Default:** `100`
@@ -3256,16 +3246,16 @@ limits {
 
 ---
 
-### `max-body-size-bytes`
+### `max-body-size`
 
-Maximum request body size.
+Maximum request body size, in bytes. A route's `policies { max-body-size }` can lower it for that route; the smaller of the two applies. A body over it gets `413` (from 26.10_5; `500` before).
 
 **Context:** `limits`
-**Default:** `1048576`
+**Default:** `10485760`
 
 ```kdl
 limits {
-    max-body-size-bytes 10485760
+    max-body-size 10485760
 }
 ```
 
@@ -3273,7 +3263,7 @@ limits {
 
 ### `max-connections-per-client`
 
-Maximum connections from single client.
+Parsed but **not applied**: Zentinel does not limit client connections ([#542](https://github.com/zentinelproxy/zentinel/issues/542)).
 
 **Context:** `limits`
 **Default:** `100`
@@ -3286,31 +3276,16 @@ limits {
 
 ---
 
-### `max-connections-per-route`
-
-Maximum connections per route.
-
-**Context:** `limits`
-**Default:** `1000`
-
-```kdl
-limits {
-    max-connections-per-route 500
-}
-```
-
----
-
 ### `max-total-connections`
 
-Global maximum connections.
+Parsed but **not applied** ([#542](https://github.com/zentinelproxy/zentinel/issues/542)).
 
 **Context:** `limits`
 **Default:** `10000`
 
 ```kdl
 limits {
-    max-total-connections 50000
+    max-total-connections 10000
 }
 ```
 
@@ -3318,29 +3293,14 @@ limits {
 
 ### `max-in-flight-requests`
 
-Maximum in-flight requests globally.
+Parsed but **not applied** ([#542](https://github.com/zentinelproxy/zentinel/issues/542)).
 
 **Context:** `limits`
 **Default:** `10000`
 
 ```kdl
 limits {
-    max-in-flight-requests 20000
-}
-```
-
----
-
-### `max-queued-requests`
-
-Queue length before rejection.
-
-**Context:** `limits`
-**Default:** `1000`
-
-```kdl
-limits {
-    max-queued-requests 5000
+    max-in-flight-requests 10000
 }
 ```
 

@@ -35,7 +35,6 @@ Zentinel uses KDL (a human-friendly document language) for configuration. This s
 ```kdl
 system {
     worker-threads 0
-    max-connections 10000
     trace-id-format "tinyflake"
 }
 
@@ -114,7 +113,7 @@ observability {
 }
 
 limits {
-    max-body-size-bytes 10485760
+    max-body-size 10485760
 }
 ```
 

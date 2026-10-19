@@ -50,11 +50,11 @@ Or set the `ZENTINEL_CONFIG` environment variable. With neither, Zentinel does n
 Run both checks:
 
 ```bash
-zentinel test --config zentinel.kdl   # anything that would stop the proxy starting
-zentinel lint --config zentinel.kdl   # also: settings that are being ignored
+zentinel test --config zentinel.kdl   # anything that would stop the proxy starting, plus ignored settings
+zentinel lint --config zentinel.kdl   # ignored settings and best-practice advice
 ```
 
-A misspelled or misplaced optional setting is not an error: `test` passes and the proxy uses the default. Only `lint` reports it ("… is not a setting in the '…' block and is being ignored"). Add `--verbose` for detailed output.
+A misspelled or misplaced optional setting is not an error: the proxy uses the default. From 26.10_5 `test` prints it as a warning ("… is not a setting in the '…' block and is being ignored") and still exits `0`; `zentinel test --strict` exits `1`. Before 26.10_5 only `lint` reported it. Add `--verbose` for detailed output.
 
 ### How do I reload configuration without downtime?
 
@@ -68,11 +68,11 @@ systemctl reload zentinel
 
 Zentinel validates the new configuration before applying it. If validation fails, the old configuration remains active.
 
-As of 26.10_3 a reload does not start health checks for upstreams it added or changed ([#516](https://github.com/zentinelproxy/zentinel/issues/516)). Restart after adding or changing a `health-check`.
+From 26.10_5 a reload also starts, changes and stops health checks. On earlier releases it did not ([#516](https://github.com/zentinelproxy/zentinel/issues/516)): restart after adding or changing a `health-check`. Rate limiters are not rebuilt on reload; restart after changing a rate limit ([#543](https://github.com/zentinelproxy/zentinel/issues/543)).
 
 ### Can I use environment variables in configuration?
 
-No. Environment variables are not interpolated in KDL configuration files: `${VAR}` is kept as literal text. In a listener `address` it passes `zentinel test` and then crashes the proxy at startup ([#520](https://github.com/zentinelproxy/zentinel/issues/520)). Use separate configuration files for different environments or generate configuration programmatically (for example with `envsubst`) before starting the proxy.
+No. Environment variables are not interpolated in KDL configuration files: `${VAR}` is kept as literal text. From 26.10_5, `zentinel test` rejects a `${` in a listener address, upstream target or metrics address; before, a listener address passed `test` and then crashed the proxy at startup ([#520](https://github.com/zentinelproxy/zentinel/issues/520)). Use separate configuration files for different environments or generate configuration programmatically (for example with `envsubst`) before starting the proxy.
 
 ### Why does a setting have no effect?
 
@@ -217,8 +217,9 @@ curl http://localhost:9090/admin/upstreams
 ```
 
 Common causes:
-- Health endpoint returning non-200 status
-- Health check timeout too short
+- Health endpoint returning a status other than `expected-status` (default `200`)
+- The backend rejecting the probe's `Host` header: the HTTP check sends the check's `host`, or `localhost` when it is not set
+- Health check timeout (`timeout-secs`) too short
 - Network/firewall blocking health checks
 - Upstream server overloaded
 
@@ -238,7 +239,7 @@ Set `worker-threads 0` (the default) to auto-detect based on CPU cores. For most
 
 ### How do I increase connection limits?
 
-As of 26.10_3 Zentinel has no working connection cap to raise: `system { max-connections }` and `limits { max-connections-per-client max-total-connections }` are accepted but not enforced (see [Known Limitations](@/reference/known-limitations.md)). The limit you are likely to hit is the operating system's open-file limit. Raise it for the proxy process:
+Zentinel has no connection cap to raise: `system { max-connections }` and `limits { max-connections-per-client max-total-connections }` are accepted but not enforced (see [Known Limitations](@/reference/known-limitations.md)); from 26.10_5 `zentinel test` and `lint` report `system { max-connections }`. The limit you are likely to hit is the operating system's open-file limit. Raise it for the proxy process:
 ```bash
 ulimit -n 65535
 ```
