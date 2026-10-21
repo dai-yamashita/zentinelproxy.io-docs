@@ -1,0 +1,15 @@
+{#- Zentinel design system, loaded into <head> after the theme's style.css
+    through `{% block head %}` in this site's page.html, section.html and
+    404.html. Order matters: fonts, tokens, bridge, frame are vendored from
+    zentinelproxy/design (static/css/zentinel-*.css, do not edit them here),
+    then zentinel-docs.css holds the docs-only overrides on top of tanuki. -#}
+<link rel="preload" href="{{ get_url(path='fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2') | safe }}" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="{{ get_url(path='css/zentinel-fonts.css') | safe }}">
+<link rel="stylesheet" href="{{ get_url(path='css/zentinel-tokens.css') | safe }}">
+<link rel="stylesheet" href="{{ get_url(path='css/zentinel-bridge.css') | safe }}">
+<link rel="stylesheet" href="{{ get_url(path='css/zentinel-frame.css') | safe }}">
+<link rel="stylesheet" href="{{ get_url(path='css/site.css') | safe }}">
+<link rel="stylesheet" href="{{ get_url(path='css/zentinel-docs.css') | safe }}">
+{#- No theme is seeded: like the site's System setting, an unset preference
+    follows the OS (tanuki's 'auto'), and dark only wins when the OS says
+    nothing. The toggle's choice is stored by tanuki. -#}
